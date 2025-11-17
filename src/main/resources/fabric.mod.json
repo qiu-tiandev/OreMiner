@@ -1,0 +1,40 @@
+{
+	"schemaVersion": 1,
+	"id": "ore-miner",
+	"version": "${version}",
+	"name": "Ore Miner",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"dhajksdhs"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/ore-miner/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"xyz.dhajksdhs.hmmm.OreMiner"
+		],
+		"fabric-datagen": [
+			"xyz.dhajksdhs.hmmm.OreMinerDataGenerator"
+		],
+        "client": [
+            "xyz.dhajksdhs.hmmm.OreMinerClient"
+        ]
+	},
+	"mixins": [
+		"ore-miner.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.17.3",
+		"minecraft": "~1.21.10",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
