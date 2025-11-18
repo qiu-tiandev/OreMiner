@@ -25,9 +25,9 @@ Mod has a toggle command allowing each player to enable or disable OreMiner.
 ### Commands
 #### `/oreminertoggle`
 Toggle Ore Miner on or off for your player account: 
-#### `/oreminer`
-**Required permission level: 3**
-**Arguments: `add` `remove` `list` `reset`**
+#### `/oreminer`  
+**Required permission level: 3**  
+**Arguments: `add` `remove` `list` `reset`**  
 Allows server admins to change which blocks can be automatically mined.
 
 ---
