@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"id": "ore-miner",
-	"version": "${version}",
+	"version": "1.2.0",
 	"name": "Ore Miner",
 	"description": "This is an example description! Tell everyone what your mod is about!",
 	"authors": [
