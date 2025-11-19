@@ -1,5 +1,8 @@
 package xyz.dhajksdhs.hmmm;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.block.Block;
@@ -7,12 +10,13 @@ import net.minecraft.block.Blocks;
 import net.minecraft.command.argument.BlockStateArgumentType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.particle.ParticleTypes;
-
+import java.util.AbstractMap.SimpleEntry;
 import java.awt.*;
 import java.util.*;
 import net.minecraft.server.command.CommandManager;
@@ -28,8 +32,10 @@ public class OreMiner implements ModInitializer {
 	// This logger is used to write text to the console and the log file.
 	// It is considered best practice to use your mod id as the logger's name.
 	// That way, it's clear which mod wrote info, warnings, and errors.
-	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+	public static int MaxDepth = 100;
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static final Map<UUID,Boolean> enabled = new HashMap<>();
+    public static boolean globalEnable = true;
     public static final Set<Block> ores = Set.of(
             Blocks.COAL_ORE,
             Blocks.DEEPSLATE_COAL_ORE,
@@ -59,7 +65,7 @@ public class OreMiner implements ModInitializer {
             if (!tool.isSuitableFor(state))return true; //check if player is menance
             Block block = state.getBlock();
             if (configuredOres.contains(block)) {
-                helper(serverWorld,block,pos,new HashSet<>(),player);
+                helper(serverWorld,block,pos,player);
                 return true;
             }
             return true;
@@ -77,36 +83,58 @@ public class OreMiner implements ModInitializer {
         CommandRegistrationCallback.EVENT.register(((d, commandRegistryAccess, registrationEnvironment) ->{
             d.register(CommandManager.literal("oreminer").requires(source -> source.hasPermissionLevel(3)).then(CommandManager.literal("list").executes(con ->{
                 listTargetedOres(con.getSource().getPlayer());
-                return 0;
+                return 1;
             })).then(CommandManager.literal("add").then(CommandManager.argument("block", BlockStateArgumentType.blockState(commandRegistryAccess)).executes(con ->{
-                PlayerEntity player = con.getSource().getPlayer();
-                addTargetedOres(BlockStateArgumentType.getBlockState(con, "block").getBlockState().getBlock(), player);
-                return 0;
+                addTargetedOres(BlockStateArgumentType.getBlockState(con, "block").getBlockState().getBlock(), con);
+                return 1;
             }))).then(CommandManager.literal("remove").then(CommandManager.argument("block",BlockStateArgumentType.blockState(commandRegistryAccess)).executes(con ->{
-                removeTargetedOres(BlockStateArgumentType.getBlockState(con,"block").getBlockState().getBlock(),con.getSource().getPlayer());
-                return 0;
+                removeTargetedOres(BlockStateArgumentType.getBlockState(con,"block").getBlockState().getBlock(),con);
+                return 1;
             }))).then(CommandManager.literal("reset").executes(con->{
-                resetOres(con.getSource().getPlayer());
-                return 0;
-            })));
+                resetOres(con);
+                return 1;
+            })).then(CommandManager.literal("toggle").executes(con->{
+                globalEnable = !globalEnable;
+                return 1;
+            })).then(CommandManager.literal("set").then(CommandManager.argument("setting", StringArgumentType.word()).suggests((con, builder)-> {builder.suggest("MaxAutomaticMiningDepth");return builder.buildFuture();}).then(CommandManager.argument("value", IntegerArgumentType.integer()).executes(con ->{
+                switch (StringArgumentType.getString(con, "setting")) {
+                    case "MaxAutomaticMiningDepth": //controls how many layers oreminer can mine at once
+                        int val = IntegerArgumentType.getInteger(con,"value");
+                        MaxDepth = val;
+                        con.getSource().sendFeedback(()->Text.literal(String.format("Max mining depth is now set to %d blocks.",val)),true);
+                        return 1;
+                    default:
+                        con.getSource().sendFeedback(() -> Text.literal("Command not found."),false);
+                        return 1;
+                }
+            })))));
         }));
 	}
-    public void helper(ServerWorld world, Block Ore, BlockPos pos, Set<BlockPos> visited, PlayerEntity player) {
-        if (visited.contains(pos))return;
-        visited.add(pos);
-        var state = world.getBlockState(pos);
-        Block target = world.getBlockState(pos).getBlock();
-        if (!target.equals(Ore))return; // check if ore is same as ore mined
-        world.setBlockState(pos, Blocks.AIR.getDefaultState());
-        Block.dropStacks(state,world,pos,null,player,player.getMainHandStack());
-        world.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state), pos.getX()+0.5,pos.getY()+0.5,pos.getZ()+0.5,20,0.25,0.25,0.25,0.5); //spawn breaking particles
-        //recur
-        helper(world,target,pos.up(),visited, player);
-        helper(world,target,pos.down(),visited,player);
-        helper(world,target,pos.north(),visited,player);
-        helper(world,target,pos.south(),visited,player);
-        helper(world,target,pos.east(),visited,player);
-        helper(world,target,pos.west(),visited,player);
+    public void helper(ServerWorld world, Block Ore, BlockPos pos, PlayerEntity player) {
+        Queue<SimpleEntry<BlockPos,Integer>> visit = new LinkedList<>();
+        visit.add(new SimpleEntry<>(pos,1));
+        Set<BlockPos>visited = new HashSet<>();
+        int depth = 1;
+        while (!visit.isEmpty()){
+            SimpleEntry<BlockPos, Integer> p = visit.poll();
+            depth = p.getValue();
+            if (depth>MaxDepth)return;
+            if (visited.contains(p.getKey()))continue;
+            var state = world.getBlockState(p.getKey());
+            if (state.getBlock().equals(Ore)){
+                world.setBlockState(p.getKey(), Blocks.AIR.getDefaultState());
+                Block.dropStacks(state,world,p.getKey(),null,player,player.getMainHandStack());
+                world.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state), p.getKey().getX()+0.5,p.getKey().getY()+0.5,p.getKey().getZ()+0.5,20,0.25,0.25,0.25,0.5); //spawn breaking particles
+                visit.add(new SimpleEntry<>(p.getKey().up(),depth+1));
+                visit.add(new SimpleEntry<>(p.getKey().down(),depth+1));
+                visit.add(new SimpleEntry<>(p.getKey().east(),depth+1));
+                visit.add(new SimpleEntry<>(p.getKey().west(),depth+1));
+                visit.add(new SimpleEntry<>(p.getKey().north(),depth+1));
+                visit.add(new SimpleEntry<>(p.getKey().south(),depth+1));
+            }
+            visited.add(p.getKey());
+        }
+
     }
     public static void listTargetedOres(PlayerEntity player) {
         String msg ="Effective blocks:\n";
@@ -115,19 +143,19 @@ public class OreMiner implements ModInitializer {
         }
         player.sendMessage(Text.literal(msg),false);
     }
-    public static void addTargetedOres(Block ore, PlayerEntity player) {
+    public static void addTargetedOres(Block ore, CommandContext<ServerCommandSource> context) {
         configuredOres.add(ore);
-        player.sendMessage(Text.literal(String.format("Added %s to vein-mineable blocks.",ore.getName().getString())),false);
+        context.getSource().sendFeedback(()->Text.literal(String.format("Added %s to vein-mineable blocks.",ore.getName().getString())),true);
     }
-    public static void removeTargetedOres(Block ore, PlayerEntity player){
+    public static void removeTargetedOres(Block ore, CommandContext<ServerCommandSource> context){
         if (configuredOres.remove(ore)){
-            player.sendMessage(Text.literal(String.format("Removed %s from vein-mineable blocks.",ore.getName().getString())),false);
+            context.getSource().sendFeedback(()->Text.literal(String.format("Removed %s from vein-mineable blocks.",ore.getName().getString())),true);
         }else{
-            player.sendMessage(Text.literal("Block not in vein-mineable list."),false); //wtf is user doing
+            context.getSource().sendFeedback(() ->Text.literal("Block not in vein-mineable list."),false); //wtf is user doing
         }
     }
-    public static void resetOres(PlayerEntity player){
+    public static void resetOres(CommandContext<ServerCommandSource> context){
         configuredOres = new HashSet<>(ores);
-        player.sendMessage(Text.literal("Vein-mineable list has been reset."),false);
+        context.getSource().sendFeedback(()->Text.literal("Vein-mineable list has been reset."),true);
     }
 }
