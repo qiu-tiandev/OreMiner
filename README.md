@@ -1,7 +1,7 @@
 # OreMiner
 
 **Mod ID:** `ore-miner`  
-**Latest Version:** v1.1.0  
+**Latest Version:** v1.2.1  
 **Minecraft:** 1.21.10  
 **Fabric Loader:** 0.17.3+  
 
@@ -27,13 +27,13 @@ Mod has a toggle command allowing each player to enable or disable OreMiner.
 Toggle Ore Miner on or off for your player account: 
 #### `/oreminer`  
 **Required permission level: 3**  
-**Arguments: `add` `remove` `list` `reset`**  
-Allows server admins to change which blocks can be automatically mined.
+**Arguments: `add` `remove` `list` `reset` `set`**  
+Allows server admins to change which and how many blocks can be automatically mined.
 
 ---
 
 ## Building from source
-
+**Requires Java 21 or later**
 1. Clone this repo with `git clone https://github.com/qiu-tiandev/OreMiner`
 ### Windows
 2. Go to the repo directory and run `gradlew.bat build`
